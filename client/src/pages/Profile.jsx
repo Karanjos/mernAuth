@@ -21,9 +21,10 @@ const Profile = () => {
   const { currentUser, loading, error } = useSelector((state) => state.user);
   const [file, setFile] = useState(undefined);
   const [filePercentage, setFilePercentage] = useState(0);
-  const [uploadError, setUploadError] = useState(false);
+  const [imageFileUploadError, setImageFileUploadError] = useState(false);
   const [formData, setFormData] = useState({});
   const [updateSuccess, setUpdateSuccess] = useState(false);
+  const [updateError, setUpdateError] = useState(false);
   const dispatch = useDispatch();
   const fileRef = useRef(null);
 
@@ -34,6 +35,7 @@ const Profile = () => {
   }, [file]);
 
   const handleFileUpload = async (file) => {
+    setImageFileUploadError(null);
     const storage = getStorage(app);
     const fileName = new Date().getTime() + "-" + file.name;
     const storageRef = ref(storage, fileName);
@@ -42,13 +44,17 @@ const Profile = () => {
     uploadTask.on(
       "state_changed",
       (snapshot) => {
-        setUploadError(false);
+        setImageFileUploadError(null);
         const progress =
           (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
         setFilePercentage(Math.round(progress));
       },
       (error) => {
-        setUploadError(true);
+        setImageFileUploadError(
+          "Could not upload image (File must be less than 2MB)"
+        );
+        setFilePercentage(null);
+        setFile(null);
       },
       () => {
         getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
@@ -64,6 +70,12 @@ const Profile = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setUpdateError(null);
+    setUpdateSuccess(null);
+    if (Object.keys(formData).length === 0) {
+      setUpdateError("No changes made");
+      return;
+    }
     try {
       dispatch(updateUserStart());
       const res = await fetch(`/api/user/update/${currentUser._id}`, {
@@ -74,14 +86,16 @@ const Profile = () => {
         body: JSON.stringify(formData),
       });
       const data = await res.json();
-      if (data.success === false) {
-        dispatch(updateUserFailure(data));
-        return;
+      if (!res.ok) {
+        dispatch(updateUserFailure(data.message));
+        setUpdateError(data.message);
+      } else {
+        dispatch(updateUserSuccess(data));
+        setUpdateSuccess("User's profile updated successfully");
       }
-      dispatch(updateUserSuccess(data));
-      setUpdateSuccess(true);
     } catch (error) {
       dispatch(updateUserFailure(error));
+      setUpdateError(error.message);
     }
   };
 
@@ -113,6 +127,13 @@ const Profile = () => {
 
   return (
     <div className=" p-3 max-w-lg mx-auto">
+      {/** displaying error related to form submission */}
+      <p className=" text-green-700 mt-5 text-center">
+        {updateSuccess && "User updated successfully!"}
+      </p>
+      <p className=" text-yellow-700 mt-5 text-center">
+        {updateError && `${updateError}`}
+      </p>
       <h1 className=" text-3xl font-semibold text-center my-7">Profile</h1>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -131,7 +152,7 @@ const Profile = () => {
         />
         {/** displaying error related to file upload */}
         <p className=" text-sm self-center">
-          {uploadError ? (
+          {imageFileUploadError ? (
             <span className=" text-red-700">
               Could not upload image (file size must be less than 2 MB), Please
               try again
@@ -184,11 +205,6 @@ const Profile = () => {
           Sign out
         </span>
       </div>
-      {/** displaying error related to form submission */}
-      <p className=" text-red-700 mt-5">{error && "Somethin went wrong!"}</p>
-      <p className=" text-green-700 mt-5">
-        {updateSuccess && "User updated successfully!"}
-      </p>
     </div>
   );
 };

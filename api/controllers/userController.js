@@ -14,10 +14,13 @@ export const updateUser = async (req, res, next) => {
       errorHandler(401, "You are not authorized to perform this action")
     );
   }
-  try {
-    if (req.body.password) {
-      req.body.password = bcryptjs.hash(req.body.password, 10);
+  if (req.body.password) {
+    if (req.body.password.length < 6) {
+      return next(errorHandler(400, "Password must be at least 6 characters"));
     }
+    req.body.password = bcryptjs.hashSync(req.body.password, 10);
+  }
+  try {
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
       {
@@ -51,4 +54,4 @@ export const deleteUser = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
-}
+};
